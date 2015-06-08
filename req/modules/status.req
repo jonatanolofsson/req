@@ -1,0 +1,13 @@
+---
+Title: Create Requirements Overview
+Description: |
+    The software shall be able to output a command line summary
+    of the project's requirements. The overview shall be available by executing
+    ```
+    :::bash
+    req status
+    ```
+Rationale: >
+    Getting an overview of the current requirement status is essential to knowing
+    when a project is ready. A command line overview will make this accessible for developers.
+Test: python tests/test_status.py

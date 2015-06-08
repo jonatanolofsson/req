@@ -1,0 +1,3 @@
+TOP = $(TUP_CWD)
+
+!test = |> req req -o %o |> %B.json
