@@ -21,11 +21,13 @@ def parse_args(args):
     return argparser.parse_args(args)
 
 
-@req.Requirement.extend('test')
+@req.extend(req.Requirement)
 def test(self, store_result=True):
     """
     Run the test defined for a requirement
     """
+    if 'Test' not in self:
+        return None
     result = subprocess.call(
         shlex.split(self['Test']),
         stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -41,7 +43,10 @@ def main(args):
     Main
     """
     args = parse_args(args)
-    results = list(tst.test() for tst in req.get_requirements(args.limit))
+    results = []
+    for requirement in req.get_requirements(args.limit):
+        results.append(requirement.test())
+        print(requirement)
     print("{}/{} tests passed".format(sum(results), len(results)))
     exit(0 if all(results) else 1)
 

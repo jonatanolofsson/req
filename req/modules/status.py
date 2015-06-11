@@ -2,10 +2,8 @@
 List status of all requirements
 """
 import argparse
-import collections
 
 from .. import req
-from .. import util
 
 
 def parse_args(args):
@@ -31,13 +29,11 @@ def status(limit=None, ref=None, filterfun=None):
     """
     Return a status report of all requirements under a directory
     """
-    filterfun = filterfun if filterfun else lambda x: x
-    return {reqobj.fullname(): collections.OrderedDict(
-        [('key', reqobj.key(short=True)),
-         ('status', reqobj.status()),
-         ('path', reqobj.fullname()),
-         ('title', reqobj['Title'])
-        ]) for reqobj in req.get_requirements(limit, ref) if filterfun(reqobj)}
+    filterfun = filterfun if filterfun else lambda x: True
+    objects = (reqobj for reqobj in req.get_requirements(limit, ref) if filterfun(reqobj))
+    for reqobj in iter(objects):
+        print(reqobj)
+    return objects
 
 def main(args):
     """
@@ -49,7 +45,8 @@ def main(args):
         if args.failing:
             return reqobj.status() != True
         return True
-    util.print_table(status(args.limit, args.ref, _filterfun))
+    status(args.limit, args.ref, _filterfun)
+
 
 if __name__ == '__main__':
     import sys

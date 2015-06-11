@@ -4,7 +4,7 @@ Requirement temporal result database handling
 import json
 from . import command as subprocess
 GIT = ['git']
-_DB_NOTESREF = 'reqs'
+_DB_NOTESREF = 'req'
 
 class CommitDB(object):
     """ Object representing a specific point in history """

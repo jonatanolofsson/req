@@ -3,7 +3,7 @@ Req main lib
 """
 import json
 import os
-import hashlib
+import re
 
 from . import filesystem
 from . import command as subprocess
@@ -13,35 +13,46 @@ GIT = ['git']
 _THIS_DIR = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
 VERIFIER_DIRECTORY = os.path.join(_THIS_DIR, 'verifiers')
 TESTDIR = os.path.join(_THIS_DIR, 'testdirs')
+_FULLNAMEFORMAT = '{}[{}]'
 
-
+# pylint: disable=invalid-name
 class Requirement(object):
     """
     Requirement class
     """
+    ALLOWED_STATES = ['ok']
     _data = {}
     _ref = None
     _objref = None
-    _key = None
     _path = None
-    def __init__(self, path, ref=None):
+    _module = None
+    def __init__(self, module, config, ref=None):
         """ Init """
         self._ref = ref
-        self._path = os.path.abspath(path)
         self._objref = db.objref(self._ref)
-        self._data = filesystem.load_yamlfile(self._path, ref)
-        self._key = get_key(self.fullname())
+        self._data = config
+        self._module = os.path.relpath(module, filesystem.reqroot())
+        self._path = os.path.abspath(self._module)
 
     def status(self):
         """ Return the recorded teststatus of the requirement """
-        return self.cdb().get(self.key(), {}).get('status', None)
+        return self.cdb().get(self.id(), {}).get('status', None)
+
+    def state(self):
+        """ Get state """
+        return self['State'] if 'State' in self and self['State'] in Requirement.ALLOWED_STATES \
+            else None
 
     def store_property(self, prop, value):
         """ Store single property in database """
         cdb_ = self.cdb()
-        reqdata = cdb_.get(self.key(), {})
+        reqdata = cdb_.get(self.id(), {})
         reqdata[prop] = value
-        cdb_[self.key()] = reqdata
+        cdb_[self.id()] = reqdata
+
+    def id(self):
+        """ Return requirement id """
+        return self['Id']
 
     def cdb(self):
         """ Access the commit database """
@@ -61,24 +72,25 @@ class Requirement(object):
 
     def __str__(self):
         """ String representation of object """
-        return "{}\t{}\t{}\t{}".format(
-            self.key(short=True),
+        return '\t'.join((str(x) for x in [
             self.status(),
-            self.path(),
+            self.state(),
+            self.module(),
+            self.id(),
             self['Title']
-        )
+        ]))
 
     def __repr__(self):
         """ Repr """
         return json.dumps(self._data, sort_keys=True)
 
-    def key(self, short=False):
-        """ Return key """
-        return self._key[0:10] if short else self._key
-
     def path(self):
         """ Get path """
         return self._path
+
+    def module(self):
+        """ Get module name """
+        return self._module
 
     def ref(self):
         """ Get ref """
@@ -86,51 +98,81 @@ class Requirement(object):
 
     def fullname(self):
         """ Get path relative reqroot """
-        return os.path.relpath(self._path, filesystem.reqroot())
+        return _FULLNAMEFORMAT.format(self._module, self['Id'])
 
-    @staticmethod
-    def extend(name):
+def extend(eclass, name=None):
+    """ Extend the class with new methods """
+    def _extend(fun):
         """ Extend the class with new methods """
-        def _extend(fun):
-            """ Extend the class with new methods """
-            setattr(Requirement, name, fun)
-        return _extend
+        setattr(eclass, fun.__name__ if name is None else name, fun)
+    return _extend
 
 
 def conf(ref=None):
     """ Load req configuration """
-    return filesystem.load_yamlfile(os.path.join(filesystem.reqroot(),
-                                                 filesystem.REQCONF_FILE), ref)
+    if conf.conf is None:
+        conf.conf = filesystem.load_yamlfile(os.path.join(filesystem.reqroot(),
+                                                          filesystem.REQCONF_FILE), ref)
+    return conf.conf
+conf.conf = None
 
 
-def get_key(reqfile):
-    """ Get unique key for a given requirement """
-    return hashlib.sha1(reqfile.encode('utf-8')).hexdigest()
-
-
-def get(reqfile, ref=None):
+def load_module(reqfile, ref=None):
     """ Retrieve contents of reqfile as yaml """
-    if ref not in get.cache:
-        get.cache[ref] = {}
-    if reqfile not in get.cache[ref]:
-        get.cache[ref][reqfile] = Requirement(reqfile, ref)
-    return get.cache[ref][reqfile]
-get.cache = {}
+    if ref not in load_module.cache:
+        load_module.cache[ref] = {}
+    if reqfile not in load_module.cache[ref]:
+        load_module.cache[ref][reqfile] = [
+            Requirement(reqfile, config, ref)
+            for config in filesystem.load_yamlfile(reqfile, ref, True)]
+    return load_module.cache[ref][reqfile]
+load_module.cache = {}
+
+
+def parse_limit(limit):
+    """ Parse limit argument """
+    idpatterns = None
+    if limit:
+        result = re.match(r'(?P<path>[^\[]+)?(\[(?P<idpatterns>.+)\]$)?', limit).groupdict("")
+        path = os.path.abspath(result['path'])
+        if result['idpatterns'] is not None:
+            idpatterns = result['idpatterns'].split(',')
+    else:
+        path = filesystem.reqroot()
+    assert filesystem.reqroot() in path, "Directory is outside reqroot"
+    return path, idpatterns
+
+
+
+def get_modules(limit=None, ref=None):
+    """
+    Get all requirement modules
+    """
+    path, _ = parse_limit(limit)
+    if ref:
+        yield from (line.split()[3] for line in subprocess.get_output(
+            GIT + ['ls-tree', '-r', ref, '--', path]
+        ).splitlines() if line.endswith('.req'))
+    else:
+        if os.path.isfile(path):
+            yield path
+        else:
+            for root, dirs, files in os.walk(path):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                yield from (os.path.join(root, f) for f in files if f.endswith(".req"))
 
 
 def get_requirements(limit=None, ref=None):
     """
     Get all requirements, optionally limited to a specific directory
     """
-    path = os.path.abspath(limit) if limit else filesystem.reqroot()
-    assert filesystem.reqroot() in path, "Directory is outside reqroot"
-    if ref:
-        yield from (get(line.split()[3], ref) for line in subprocess.get_output(
-            GIT + ['ls-tree', '-r', ref, '--', path]
-        ).splitlines() if line.endswith('.req'))
-    else:
-        for root, dirs, files in os.walk(path):
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
-            yield from (get(os.path.join(root, file_))
-                        for file_ in files if file_.endswith(".req"))
+    path, idpatterns = parse_limit(limit)
+    def _filterfun(reqobj):
+        """ Filter requirements """
+        return idpatterns is None or \
+            any(re.match(idpattern, reqobj.id()) for idpattern in idpatterns)
+
+    yield from (reqobj for module in get_modules(path, ref)
+                for reqobj in load_module(module, ref)
+                if _filterfun(reqobj))
 

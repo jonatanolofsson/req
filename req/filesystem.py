@@ -36,11 +36,12 @@ def read_file(path, ref=None):
     return _load_file_from_git() if ref else _load_file_from_fs()
 
 
-def load_yamlfile(reqfile, ref=None):
+def load_yamlfile(reqfile, ref=None, multiple=False):
     """
     Load requirement file
     """
-    return yaml.load(read_file(reqfile, ref))
+    data = read_file(reqfile, ref)
+    return yaml.load_all(data) if multiple else yaml.load(data)
 
 
 def reqroot():

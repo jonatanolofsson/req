@@ -1,5 +1,6 @@
 ---
 Title: Create Requirements Overview
+Id: st1
 Description: |
     The software shall be able to output a command line summary
     of the project's requirements. The overview shall be available by executing
@@ -10,4 +11,20 @@ Description: |
 Rationale: >
     Getting an overview of the current requirement status is essential to knowing
     when a project is ready. A command line overview will make this accessible for developers.
-Test: python tests/test_status.py
+State: ok
+Test: python tests/test_status.py StatusTest.test_status
+
+---
+Title: Narrow overview
+Id: st2
+Description: |
+    The software shall be able to output a narrowed-down overview of all requirements
+    placed under a specified directory. The narrow overview shall be available by giving a
+    directory argument to the *status* command.
+    ```
+    :::bash
+    req status <directory>
+    ```
+Rationale: >
+State: nok
+Test: python tests/test_status.py StatusTest.test_narrow

@@ -1,0 +1,12 @@
+---
+Title: Verify Requirement Description
+Id: verify1
+Description: |
+    The software shall be able to verify the requirement description
+    ```
+    :::bash
+    req verify
+    ```
+Rationale: >
+    It's useful
+Test: python tests/test_verify.py VerifyTest.test_verify

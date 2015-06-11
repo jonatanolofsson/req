@@ -32,9 +32,10 @@ def import_source(source_file, module_name=None):
     module_name = module_name or _get_libpath(source_file)
     return importlib.machinery.SourceFileLoader(module_name, source_file).load_module()
 
+
 def print_table(data):
     """
     Print data as formatted table
     """
-    for line in data.values():
+    for line in data:
         print("\t".join((str(x) for x in line.values())))

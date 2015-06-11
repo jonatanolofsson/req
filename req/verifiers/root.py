@@ -6,6 +6,9 @@ def verify(reqobj):
     """
     Verify basic structure of reqobj
     """
-    required_fields = {'Title', 'Description'}
+    required_fields = {'Title', 'Description', 'Id'}
     missing_fields = [key for key in required_fields if key not in reqobj]
-    assert len(missing_fields) == 0, "Missing fields: {}".format(", ".join(missing_fields))
+    if len(missing_fields) > 0:
+        print("Missing fields: {}".format(", ".join(missing_fields)))
+        return False
+    return True
